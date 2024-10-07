@@ -6,12 +6,13 @@ import json
 
 from casaplotms import plotms
 from goco_helpers.clean_tasks import (get_tclean_params, tclean_parallel,
-                                      pb_clean)
+                                      pb_clean, auto_masking)
 from goco_helpers.config_generator import read_config
 from goco_helpers.continuum import get_continuum
 from goco_helpers.image_tools import pb_crop
 from goco_helpers.mstools import (flag_freqs_to_channels, spws_per_eb,
                                   spws_for_names)
+import astropy.units as u
 import casatasks as tasks
 
 from go_continuum.afoli import afoli_iter_data
@@ -115,6 +116,10 @@ class DataManager:
     def concat_uvdata(self):
         return Path(self.config['uvdata']['concat'])
 
+    #@concat_uvdata.setter
+    #def concat_uvdata(self, value: Path):
+    #    self.config['uvdata']['concat'] = f'{value}'
+
     @property
     def nspws(self):
         return len(self.concat_spws)
@@ -169,15 +174,17 @@ class DataManager:
                       fits: bool = False,
                       uvdata: Path = None,
                       spw: Optional[int] = None,
-                      eb: Optional[int] = None) -> Path:
+                      eb: Optional[int] = None
+                      tclean_pars: Optional[Dict] = None) -> Path:
         """Generate an image name.
         
         Args:
           intent: Environment value.
-          fits: Optional; Is it a FITS image?
-          uvdata: Optional; Use this uvdata for image name.
-          spw: Optional; SPW of the image.
-          eb: Optional; EB of the image.
+          fits: Optional. Is it a FITS image?
+          uvdata: Optional. Use this uvdata for image name.
+          spw: Optional. SPW of the image.
+          eb: Optional. EB of the image.
+          tclean_pars: Optional. Additional parameters for naming.
         """
         # Imtype
         if fits:
@@ -186,10 +193,16 @@ class DataManager:
             extension = ''
 
         # SPW suffix
+        suffix = ''
+        if tclean_pars is not None:
+            suffix += f".{tclean_pars.get('deconvolver', 'hogbom')}"
+            weighting = tclean_pars.get('weighting', 'natural')
+            if weighting == 'briggs':
+                suffix += ".robust{tclean_pars.get('robust', '0.5')}"
         if spw is not None:
-            suffix = f'.spw{spw}.image{extension}'
+            suffix += f'.spw{spw}.image{extension}'
         else:
-            suffix = f'.image{extension}'
+            suffix += f'.image{extension}'
 
         # Separate by EB?
         if uvdata is not None:
@@ -301,86 +314,143 @@ class DataManager:
                                      log=self.log.info)
         self.flags = list(self.flags.values())
 
+    def _clean_continuum(self,
+                         vis: Dict[str, Path],
+                         intent: str,
+                         nproc: int = 5,
+                         resume: bool = False) -> None:
+        # Check intent
+        if intent not in ['continuum_control', 'continuum']:
+            raise ValueError(f'Intent {intent} not recognized')
+
+        # Log message
+        self.log.info('*' * 15)
+        if intent == 'continuum_control':
+            self.log.info('Continuum control (PB mask) clean:')
+        else:
+            self.log.info('Continuum auto-masking clean:')
+        self.log.info('*' * 15)
+
+        # Parameters
+        tclean_pars = get_tclean_params(self.config['continuum'])
+        tclean_pars = CLEAN_DEFAULTS | tclean_pars
+        tclean_pars['specmode'] = 'mfs'
+        nsigma = self.config.getfloat('continuum', 'nsigma', fallback=3)
+
+        # Iterate over visibilities
+        for key, val in vis.items():
+            # Image name
+            imagename = self.get_imagename(intent, uvdata=val,
+                                           tclean_pars=tclean_pars)
+
+            # Perform clean
+            if resume and imagename.exists():
+                self.log.info('Skipping %s continuum image', key)
+            else:
+                if imagename.exists():
+                    self.log.warning('Deleting %s continuum image', key)
+                    os.system(f"rm -rf {imagename.with_suffix('.*')}")
+                imagename = imagename.parent / imagename.stem
+                if intent == 'continuum_control':
+                    pb_clean([val], imagename, nproc=nproc, nsigma=nsigma,
+                             log=self.log.info, **tclean_pars)
+                else:
+                    if 'b75' in self.config['continuum']:
+                        b75 = self.config['continuum']['b75'].split()
+                        b75 = float(b75[0]) * u.Unit(b75[1])
+                    else:
+                        b75 = None
+                    auto_masking([val], imagename, nproc=nproc, b75=b75,
+                                 nsigma=nsigma, log=self.log.info,
+                                 **tclean_pars)
+
     def get_continuum_vis(self,
                           pbclean: bool = False,
+                          clean_cont: bool = False,
                           nproc: int = 5,
-                          resume: bool = False) -> None:
-        """Apply flags and calculate continuum."""
+                          intents: Sequence[str] = ('average_all', 'line-free'),
+                          flags_file: Optional[Path] = None,
+                          resume: bool = False) -> Tuple[Path]:
+        """Apply flags and calculate continuum.
+
+        Args:
+          pbclean: Optional. Clean using a PB mask?
+          clean_cont: Optional. Clean using auto-masking?
+          nproc: Optional. Number of parallel processes.
+          intents: Optional. Types of continuum to obtain.
+          flags_file: Optional. Use different file with flags.
+          resume: Optional. Resume from previous attempt.
+
+        Returns:
+          The path of the averaged visibilities and line-free continuum
+          visibilities.
+        """
         # File products
-        flags_file = self.concat_uvdata.with_suffix('.line_chan_flags.json')
-        flags_file = self.environ.uvdata / flags_file.name
-        cont_avg = self.concat_uvdata.with_suffix('.cont_avg.ms')
-        cont_avg = self.environ.uvdata / cont_avg.name
-        cont_all = self.concat_uvdata.with_suffix('.cont_all.ms')
-        cont_all = self.environ.uvdata / cont_all.name
+        if flags_file is None:
+            flags_file = self.concat_uvdata.with_suffix('.line_chan_flags.json')
+            flags_file = self.environ.uvdata / flags_file.name
 
         # Continuum: all channels
-        if cont_all.exists() and resume:
-            self.log.info('Skipping all channel continuum')
+        to_clean = {}
+        if 'average_all' in intents:
+            cont_all = self.concat_uvdata.with_suffix('.cont_all.ms')
+            cont_all = self.environ.uvdata / cont_all.name
+            if cont_all.exists() and resume:
+                self.log.info('Skipping all channel continuum')
+            else:
+                if cont_all.exists():
+                    self.log.warning('Deleting all channel continuum MS')
+                    os.system(f'rm -rf {cont_all}')
+                self.log.info('Calculating all channels continum')
+                get_continuum(self.concat_uvdata, cont_all,
+                              config=self.config['continuum'],
+                              plotdir=self.environ.plots, spw='0')
+            to_clean['average_all'] = cont_all
         else:
-            if cont_all.exists():
-                self.log.warning('Deleting all channel continuum MS')
-                os.system(f'rm -rf {cont_all}')
-            self.log.info('Calculating all channels continum')
-            get_continuum(self.concat_uvdata, cont_all,
-                          config=self.config['continuum'],
-                          plotdir=self.environ.plots, spw='0')
+            cont_all = None
 
         # Continuum: flagged channels
-        if cont_avg.exists() and resume:
-            self.log.info('Skipping line-free continuum')
-        else:
-            # Files
-            if cont_avg.exists():
-                self.log.warning('Deleting line-free continuum MS')
-                os.system(f'rm -rf {cont_avg}')
-            if flags_file.is_file() and resume:
-                flags = json.loads(flags_file.read_text())
+        if 'line-free' in intents:
+            cont_avg = self.concat_uvdata.with_suffix('.cont_avg.ms')
+            cont_avg = self.environ.uvdata / cont_avg.name
+            if cont_avg.exists() and resume:
+                self.log.info('Skipping line-free continuum')
             else:
-                flags = []
-                for data in self.data:
-                    flags.append(data.freq_flags_to_chan(self.flags))
-                flags = ','.join(flags)
-                flags_file.write_text(json.dumps(flags, indent=4))
-            
-            # Get flagged continuum
-            self.log.info('Calculating line-free continum')
-            get_continuum(self.concat_uvdata, cont_avg,
-                          config=self.config['continuum'], flags=flags,
-                          plotdir=self.environ.plots, spw='0')
+                # Files
+                if cont_avg.exists():
+                    self.log.warning('Deleting line-free continuum MS')
+                    os.system(f'rm -rf {cont_avg}')
+                if flags_file.is_file() and resume:
+                    flags = json.loads(flags_file.read_text())
+                else:
+                    flags = []
+                    for data in self.data:
+                        flags.append(data.freq_flags_to_chan(self.flags))
+                    flags = ','.join(flags)
+                    flags_file.write_text(json.dumps(flags, indent=4))
+                
+                # Get flagged continuum
+                self.log.info('Calculating line-free continum')
+                get_continuum(self.concat_uvdata, cont_avg,
+                              config=self.config['continuum'], flags=flags,
+                              plotdir=self.environ.plots, spw='0')
+            to_clean['line-free'] = cont_avg
+        else:
+            cont_avg = None
 
         # For imaging
         if pbclean:
-            self.log.info('*' * 15)
-            self.log.info('PB clean:')
-            self.log.info('*' * 15)
-            image_all = self.get_imagename('continuum_control', uvdata=cont_all)
-            image_avg = self.get_imagename('continuum_control', uvdata=cont_avg)
-            tclean_pars = get_tclean_params(self.config['continuum'])
-            tclean_pars = CLEAN_DEFAULTS | tclean_pars
-            tclean_pars['specmode'] = 'mfs'
-
-            # All channels
-            if resume and image_all.exists():
-                self.log.info('Skipping all channel continuum image')
-            else:
-                if image_all.exists():
-                    self.log.warning('Deleting all channel continuum image')
-                    os.system(f"rm -rf {image_all.with_suffix('.*')}")
-                imagename = image_all.parent / image_all.stem
-                pb_clean(cont_all, imagename, nproc=nproc, log=self.log.info,
-                         **tclean_pars)
-
-            # Avg channels
-            if image_avg.exists() and resume:
-                self.log.info('Skipping line-free continuum image')
-            else:
-                if image_avg.exists():
-                    self.log.warning('Deleting line free continuum image')
-                    os.system(f"rm -rf {image_avg.with_suffix('.*')}")
-                imagename = image_all.parent / image_avg.stem
-                pb_clean(cont_avg, imagename, nproc=nproc, log=self.log.info,
-                         **tclean_pars)
+            self._clean_continuum({'average_all': cont_all,
+                                   'line-free': cont_avg},
+                                  'continuum_control',
+                                  nproc=nproc,
+                                  resume=resume)
+        if clean_cont:
+            self._clean_continuum({'average_all': cont_all,
+                                   'line-free': cont_avg},
+                                  'continuum',
+                                  nproc=nproc,
+                                  resume=resume)
 
         return cont_all, cont_avg
 

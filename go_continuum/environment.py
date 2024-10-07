@@ -14,6 +14,8 @@ class GoCoEnviron():
     """Directory for dirty images."""
     continuum_control: Optional[Path] = None
     """Directory for continuum control images."""
+    continuum: Optional[Path] = None
+    """Directory for continuum images."""
     cubes: Optional[Path] = None
     """Directory for data cubes."""
     auto_selfcal: Optional[Path] = None
@@ -30,22 +32,18 @@ class GoCoEnviron():
             self.dirty = self.basedir / 'dirty'
         if self.continuum_control is None:
             self.continuum_control = self.basedir / 'continuum_control'
+        if self.continuum is None:
+            self.continuum_auto = self.basedir / 'continuum_auto'
         if self.cubes is None:
             self.cubes = self.basedir / 'cubes'
         if self.auto_selfcal is None:
             self.auto_selfcal = self.basedir / 'auto_selfcal'
         if self.plots is None:
             self.plots = self.basedir / 'plots'
-            #self.plots.mkdir(exist_ok=True)
         if check_env:
             self.do_check_env()
 
     def __getitem__(self, key):
-        #dict_form = {'dirty': self.dirty,
-        #             'continuum_control': self.continuum_control,
-        #             'cubes': self.cubes,
-        #             'auto_selfcal': self.auto_selfcal,
-        #             'plots': self.plots}
         dict_form = asdict(self)
         return dict_form[key]
 

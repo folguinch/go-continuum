@@ -25,7 +25,7 @@ def _prep_steps(args: argparse.Namespace):
             args.log.info('\t%s', step)
             args.steps[step] = False
 
-def _get_data_manager(args: 'argparse.Namespace') -> None:
+def get_data_manager(args: 'argparse.Namespace') -> None:
     """Generate a data manager."""
     environ = GoCoEnviron(basedir=args.base, check_env=True)
     args.manager = DataManager(args.configfile[0], environ=environ,
@@ -68,6 +68,7 @@ def _goco_pipe(args: 'argparse.Namespace') -> None:
         args.log.info('Continuum visibilities:')
         args.log.info('*' * 15)
         args.manager.get_continuum_vis(pbclean=args.steps['pbclean'],
+                                       clean_cont=args.steps['clean_cont'],
                                        nproc=args.nproc[0],
                                        resume=args.resume)
 
@@ -83,16 +84,17 @@ def goco(args: Optional[Sequence] = None) -> None:
     """GoContinuum main program.
 
     Args:
-      args: optional; command line args.
+      args: Optional. Command line args.
     """
     # Pipe and steps
-    pipe = [_prep_steps, _get_data_manager, _goco_pipe]
+    pipe = [_prep_steps, get_data_manager, _goco_pipe]
     steps = {
         'dirty': True,
         'selfcal': True,
         'afoli': True,
         'continuum': True,
         'pbclean': True,
+        'clean_cont': True,
         'contsub': True,
         'cubes': True,
     }
@@ -125,10 +127,7 @@ def goco(args: Optional[Sequence] = None) -> None:
     #                    help='Measurement sets')
     parser.add_argument('configfile', action=actions.CheckFile, nargs=1,
                         help='Configuration file name')
-    parser.set_defaults(
-        manager=None,
-        steps=steps,
-    )
+    parser.set_defaults(manager=None, steps=steps)
 
     # Read and process
     if args is None:
