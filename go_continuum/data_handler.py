@@ -1,10 +1,12 @@
 """Handle data for goco."""
-from typing import Optional, Tuple, List, Sequence
+from typing import Optional, Tuple, List, Sequence, Dict
 from dataclasses import dataclass
 from pathlib import Path
 import json
+import os
 
-from casaplotms import plotms
+#from casaplotms import plotms
+from casatasks import initweights, gaincal, applycal
 from goco_helpers.clean_tasks import (get_tclean_params, tclean_parallel,
                                       pb_clean, auto_masking)
 from goco_helpers.config_generator import read_config
@@ -174,7 +176,7 @@ class DataManager:
                       fits: bool = False,
                       uvdata: Path = None,
                       spw: Optional[int] = None,
-                      eb: Optional[int] = None
+                      eb: Optional[int] = None,
                       suffix_ending: Optional[str] = None,
                       tclean_pars: Optional[Dict] = None) -> Path:
         """Generate an image name.
@@ -321,7 +323,7 @@ class DataManager:
     def _clean_continuum(self,
                          vis: Dict[str, Path],
                          intent: str,
-                         nsigma: Optional[float] = None
+                         nsigma: Optional[float] = None,
                          nproc: int = 5,
                          resume: bool = False,
                          **tclean_args) -> Dict:
@@ -443,7 +445,7 @@ class DataManager:
                         flags.append(data.freq_flags_to_chan(self.flags))
                     flags = ','.join(flags)
                     flags_file.write_text(json.dumps(flags, indent=4))
-                
+
                 # Get flagged continuum
                 self.log.info('Calculating line-free continum')
                 get_continuum(self.concat_uvdata, cont_avg,
@@ -494,7 +496,7 @@ class DataManager:
                                                          invert=True))
                 flags = ','.join(flags)
                 flags_file.write_text(json.dumps(flags, indent=4))
-            
+
             # Get flagged continuum
             fitorder = self.config.getint('contsub', 'fitorder', fallback=1)
             tasks.uvcontsub(vis=f'{self.concat_uvdata}',
@@ -514,7 +516,7 @@ class SelfcalDataManager(DataManager):
         """Obtain continuum visibilities."""
         # Flags
         flags_file = self.config.get('selfcal', 'flags_file', fallback=None)
-        if flag_file is not None:
+        if flags_file is not None:
             flags_file = Path(flags_file)
             intents = ['line-free']
         else:

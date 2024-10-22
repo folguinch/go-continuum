@@ -2,15 +2,18 @@
 """Run predefined self-calibration.
 """
 from typing import Optional, Sequence
+from pathlib import Path
 import argparse
 import sys
 
+from astropy.table import QTable
 from goco_helpers.clean_tasks import image_sn
 from go_continuum.data_handler import SelfcalDataManager
 from go_continuum.environment import Environ
 import astropy.units as u
 import goco_helpers.argparse_actions as actions
 import goco_helpers.argparse_parents as parents
+import numpy as np
 
 def _selfcal_pipe(args: 'argparse.Namespace') -> None:
     """Run the self-calibration pipeline."""
@@ -47,6 +50,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
     table['snr'] = [int((peak/rms).to(1).value)]
 
     # Iterate over solints
+    i = 0
+    nsigma = 3
     nsigmas = map(lambda x: float(x.strip()),
                   manager.config['selfcal']['threshold_scale'])
     solints = map(lambda x: float(x.strip()),
@@ -94,15 +99,15 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         table['peak'] = np.append(table['peak'], peak)
         table['rms'] = np.append(table['rms'], rms)
         table['snr'].append(int((peak/rms).to(1).value))
-    
+
         # Amp selfcal table
         caltable = image_info['imagename'].with_suffix('.amp.cal')
         args.log('Gain table: %s', caltable)
-        args.log('Solint: %s', solint)
+        args.log('Solint: %s', ap_solint)
         manager.self_calibrate(caltable, ap_solint, calmode='ap')
 
     # Final clean
-    suffix_ending = f'.final'
+    suffix_ending = '.final'
     image_info = manager.clean_continuum(nproc=args.nproc[0],
                                          nsigma=nsigma,
                                          suffix_ending=suffix_ending)
@@ -128,15 +133,15 @@ def selfcal(args: Optional[Sequence] = None) -> None:
       args: Optional. Command line args.
     """
     # Pipe and steps
-    pipe = [get_data_manager, _selfcal_pipe]
+    pipe = [_selfcal_pipe]
 
     # Argparse configuration
-    #args_parents = [parents.logger('debug_selfcal.log')]
+    args_parents = [parents.logger('debug_selfcal.log')]
     parser = argparse.ArgumentParser(
         description='Automated data self-calibration.',
         add_help=True,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        #parents=args_parents,
+        parents=args_parents,
         conflict_handler='resolve',
     )
     parser.add_argument('--resume', action='store_true',
@@ -147,8 +152,8 @@ def selfcal(args: Optional[Sequence] = None) -> None:
                         help='Base directory')
     parser.add_argument('-n', '--nproc', type=int, nargs=1, default=[5],
                         help='Number of processes for parallel steps')
-    parser.add_argument('--skip', nargs='+', choices=list(steps.keys()),
-                        help='Skip these steps')
+    #parser.add_argument('--skip', nargs='+', choices=list(steps.keys()),
+    #                    help='Skip these steps')
     parser.add_argument('--pos', metavar=('X', 'Y'), nargs=2, type=int,
                         help='Position of the representative spectrum')
     #parser.add_argument('--uvdata', action=actions.NormalizePath, nargs='*',
@@ -162,9 +167,6 @@ def selfcal(args: Optional[Sequence] = None) -> None:
     if args is None:
         args = sys.argv[1:]
     args = parser.parse_args(args)
-    if args.list_steps:
-        args.log('Available steps: %s', list(steps.keys()))
-        sys.exit(0)
     for step in pipe:
         step(args)
         args.log.info('=' * 80)

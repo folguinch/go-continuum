@@ -92,9 +92,12 @@ def flags_from_file(filename: 'pathlib.Path',
     flags = []
     for line in lines.split('\n'):
         initial, final = line.split('~')
-        final = u.Quantity(final)
-        initial = float(initial) * final.unit
-        flags.append((initial, final))
+        if flag_type == 'freq':
+            final = u.Quantity(final)
+            initial = float(initial) * final.unit
+            flags.append((initial, final))
+        else:
+            raise NotImplementedError(f'Flag type {flag_type} not implemented')
 
     return flags
 
@@ -479,19 +482,21 @@ def afoli(spectrum: npt.ArrayLike,
     basic_mask_pars = {'edges': extremes,
                        'flagchans': flagchans,
                        'invalid_values': invalid_values}
-    filtered, cont, cstd = find_continuum(spectrum,
-                                          dilate=dilate,
-                                          min_width=min_width,
-                                          min_gap=min_gap,
-                                          table=table,
-                                          log=log,
-                                          **basic_mask_pars,
-                                          **sigmaclip_pars)
+    #filtered, cont, cstd = find_continuum(spectrum,
+    filtered, cont, _ = find_continuum(spectrum,
+                                       dilate=dilate,
+                                       min_width=min_width,
+                                       min_gap=min_gap,
+                                       table=table,
+                                       log=log,
+                                       **basic_mask_pars,
+                                       **sigmaclip_pars)
     nfil = np.ma.count_masked(filtered)
     ntot = filtered.data.size
 
     # Get sigma_clip steps
-    scpoints, scmedians, scmeans, scstds = get_sigma_clip_steps(
+    #scpoints, scmedians, scmeans, scstds = get_sigma_clip_steps(
+    scpoints, _, scmeans, scstds = get_sigma_clip_steps(
         basic_masking(spectrum, log=log, **basic_mask_pars),
         **sigmaclip_pars,
     )
