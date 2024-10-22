@@ -175,6 +175,7 @@ class DataManager:
                       uvdata: Path = None,
                       spw: Optional[int] = None,
                       eb: Optional[int] = None
+                      suffix_ending: Optional[str] = None,
                       tclean_pars: Optional[Dict] = None) -> Path:
         """Generate an image name.
         
@@ -184,6 +185,7 @@ class DataManager:
           uvdata: Optional. Use this uvdata for image name.
           spw: Optional. SPW of the image.
           eb: Optional. EB of the image.
+          suffix_ending: Optional. Append at the end of the auto suffix.
           tclean_pars: Optional. Additional parameters for naming.
         """
         # Imtype
@@ -203,6 +205,8 @@ class DataManager:
             suffix += f'.spw{spw}.image{extension}'
         else:
             suffix += f'.image{extension}'
+        if suffix_ending is not None:
+            suffix += suffix_ending
 
         # Separate by EB?
         if uvdata is not None:
@@ -317,8 +321,10 @@ class DataManager:
     def _clean_continuum(self,
                          vis: Dict[str, Path],
                          intent: str,
+                         nsigma: Optional[float] = None
                          nproc: int = 5,
-                         resume: bool = False) -> None:
+                         resume: bool = False,
+                         **tclean_args) -> Dict:
         # Check intent
         if intent not in ['continuum_control', 'continuum']:
             raise ValueError(f'Intent {intent} not recognized')
@@ -327,21 +333,26 @@ class DataManager:
         self.log.info('*' * 15)
         if intent == 'continuum_control':
             self.log.info('Continuum control (PB mask) clean:')
-        else:
+        elif intent == 'continuum':
             self.log.info('Continuum auto-masking clean:')
+        else:
+            raise ValueError(f'Intent {intent} not recognized')
         self.log.info('*' * 15)
 
         # Parameters
         tclean_pars = get_tclean_params(self.config['continuum'])
-        tclean_pars = CLEAN_DEFAULTS | tclean_pars
+        tclean_pars = CLEAN_DEFAULTS | tclean_pars | tclean_args
         tclean_pars['specmode'] = 'mfs'
-        nsigma = self.config.getfloat('continuum', 'nsigma', fallback=3)
+        if nsigma is None:
+            nsigma = self.config.getfloat('continuum', 'nsigma', fallback=3)
 
         # Iterate over visibilities
+        image_info = {}
         for key, val in vis.items():
             # Image name
             imagename = self.get_imagename(intent, uvdata=val,
                                            tclean_pars=tclean_pars)
+            info = {'imagename': imagename}
 
             # Perform clean
             if resume and imagename.exists():
@@ -352,17 +363,21 @@ class DataManager:
                     os.system(f"rm -rf {imagename.with_suffix('.*')}")
                 imagename = imagename.parent / imagename.stem
                 if intent == 'continuum_control':
-                    pb_clean([val], imagename, nproc=nproc, nsigma=nsigma,
-                             log=self.log.info, **tclean_pars)
+                    info.update(pb_clean([val], imagename, nproc=nproc,
+                                         nsigma=nsigma, log=self.log.info,
+                                         **tclean_pars))
                 else:
                     if 'b75' in self.config['continuum']:
                         b75 = self.config['continuum']['b75'].split()
                         b75 = float(b75[0]) * u.Unit(b75[1])
                     else:
                         b75 = None
-                    auto_masking([val], imagename, nproc=nproc, b75=b75,
-                                 nsigma=nsigma, log=self.log.info,
-                                 **tclean_pars)
+                    info.update(auto_masking([val], imagename, nproc=nproc,
+                                             b75=b75, nsigma=nsigma,
+                                             log=self.log.info, **tclean_pars))
+            image_info[key] = info
+
+        return image_info
 
     def get_continuum_vis(self,
                           pbclean: bool = False,
@@ -488,3 +503,78 @@ class DataManager:
                             fitspec=flags)
 
         return contsub_vis
+
+@dataclass
+class SelfcalDataManager(DataManager):
+    """Manage self-calibration data."""
+    cont_vis: Optional[Path] = None
+    """Continuum visibility name."""
+
+    def get_continuum_vis(self):
+        """Obtain continuum visibilities."""
+        # Flags
+        flags_file = self.config.get('selfcal', 'flags_file', fallback=None)
+        if flag_file is not None:
+            flags_file = Path(flags_file)
+            intents = ['line-free']
+        else:
+            intents = ['average_all']
+
+        # Calculate visibilities
+        cont_all, cont_avg = super().get_continuum_vis(intents=intents,
+                                                       flags_file=flags_file)
+
+        # Set continuum visibilities
+        if cont_all is not None:
+            self.cont_vis = cont_all
+        elif cont_avg is not None:
+            self.cont_vis = cont_avg
+        else:
+            raise ValueError('No continuum visibilities')
+        self.log.info('Working with vis file: %s', self.cont_vis)
+
+    def clean_continuum(self,
+                        nsigma: Optional[float] = None,
+                        nproc: int = 5,
+                        suffix_ending: Optional[str] = None,
+                        **tclean_args) -> Dict:
+        """Clean stored continuum visibilities."""
+        info = self._clean_continuum({'cont_vis': self.cont_vis}, 'continuum',
+                                     nproc=nproc, nsigma=nsigma,
+                                     suffix_ending=suffix_ending, **tclean_args)
+
+        return info['cont_vis']
+
+    def init_weights(self):
+        """Initialize weights."""
+        initweights(vis=f'{self.concat_uvdata}', wtmode='weight', dowtsp=True)
+
+    def self_calibrate(self,
+                       caltable: Path,
+                       solint: str,
+                       calmode: str = 'p'):
+        """Calculate gain table and apply it."""
+        # Gain table
+        cal_params = {'field': self.config['selfcal']['field'],
+                      'refant': self.config['selfcal']['refant'],
+                      'gaintype': self.config.get('selfcal', 'gaintype',
+                                                  fallback='G')}
+        combine = self.config.get('selfcal', 'combine', fallback=None)
+        if combine is not None:
+            cal_params['combine'] = combine
+        self.log.info('Other gaincal parameters: %s', cal_params)
+        gaincal(vis=f'{self.cont_vis}',
+                caltable=f'{caltable}',
+                calmode=calmode,
+                solint=solint,
+                **cal_params)
+
+        # Applycal
+        if 'spw' in combine:
+            raise NotImplementedError('SPW mapping not implemented yet')
+        applymode = self.config.get('selfcal', 'applymode', fallback='calonly')
+        self.log.info('Apply mode: %s', applymode)
+        applycal(vis=f'{self.cont_vis}',
+                 gaintable=[caltable],
+                 applymode=applymode,
+                 interp='linear')

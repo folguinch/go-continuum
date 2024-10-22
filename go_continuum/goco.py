@@ -25,7 +25,7 @@ def _prep_steps(args: argparse.Namespace):
             args.log.info('\t%s', step)
             args.steps[step] = False
 
-def get_data_manager(args: 'argparse.Namespace') -> None:
+def _get_data_manager(args: 'argparse.Namespace') -> None:
     """Generate a data manager."""
     environ = GoCoEnviron(basedir=args.base, check_env=True)
     args.manager = DataManager(args.configfile[0], environ=environ,
@@ -87,7 +87,7 @@ def goco(args: Optional[Sequence] = None) -> None:
       args: Optional. Command line args.
     """
     # Pipe and steps
-    pipe = [_prep_steps, get_data_manager, _goco_pipe]
+    pipe = [_prep_steps, _get_data_manager, _goco_pipe]
     steps = {
         'dirty': True,
         'selfcal': True,
