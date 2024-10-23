@@ -325,6 +325,7 @@ class DataManager:
                          intent: str,
                          nsigma: Optional[float] = None,
                          nproc: int = 5,
+                         suffix_ending: Optional[str] = None,
                          resume: bool = False,
                          **tclean_args) -> Dict:
         # Check intent
@@ -353,7 +354,8 @@ class DataManager:
         for key, val in vis.items():
             # Image name
             imagename = self.get_imagename(intent, uvdata=val,
-                                           tclean_pars=tclean_pars)
+                                           tclean_pars=tclean_pars,
+                                           suffix_ending=suffix_ending)
             info = {'imagename': imagename}
 
             # Perform clean
