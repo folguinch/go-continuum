@@ -202,7 +202,7 @@ class DataManager:
             suffix += f".{tclean_pars.get('deconvolver', 'hogbom')}"
             weighting = tclean_pars.get('weighting', 'natural')
             if weighting == 'briggs':
-                suffix += ".robust{tclean_pars.get('robust', '0.5')}"
+                suffix += f".robust{tclean_pars.get('robust', '0.5')}"
         if spw is not None:
             suffix += f'.spw{spw}.image{extension}'
         else:
