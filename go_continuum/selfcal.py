@@ -38,15 +38,17 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
 
     # Initial clean
     args.log.info('Initial clean')
-    image_info = manager.clean_continuum(nproc=args.nproc[0])
+    image_info = manager.clean_continuum(nproc=args.nproc[0], resume=resume)
     peak, rms = image_sn(image_info['fitsimage'])
+    args.log.info('Image peak: %s', peak)
+    args.log.info('Image rms: %s', rms)
     rms_unit = u.uJy/u.beam
     table['iter'] = ['initial']
     table['image'] = [image_info['fitsimage'].name]
     table['threshold'] = (np.array([image_info['thresholds'][-1].value]) *
                           image_info['thresholds'][-1].unit)
     table['peak'] = np.array([peak.value]) * peak.unit
-    table['rms'] = np.array([rms.to(rms_unit)]) * rms_unit
+    table['rms'] = np.array([rms.to(rms_unit).value]) * rms_unit
     table['snr'] = [int((peak/rms).to(1).value)]
 
     # Iterate over solints

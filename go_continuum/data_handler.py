@@ -12,6 +12,7 @@ from goco_helpers.clean_tasks import (get_tclean_params, tclean_parallel,
 from goco_helpers.config_generator import read_config
 from goco_helpers.continuum import get_continuum
 from goco_helpers.image_tools import pb_crop
+from goco_helpers.json_coders import CustomObjEncoder, custom_hooks
 from goco_helpers.mstools import (flag_freqs_to_channels, spws_per_eb,
                                   spws_for_names)
 import astropy.units as u
@@ -357,10 +358,14 @@ class DataManager:
                                            tclean_pars=tclean_pars,
                                            suffix_ending=suffix_ending)
             info = {'imagename': imagename}
+            info_file = imagename.with_suffix('.info.json')
 
             # Perform clean
             if resume and imagename.exists():
                 self.log.info('Skipping %s continuum image', key)
+                self.log.info('Loading info file: %s', info_file)
+                info.update(json.loads(info_file.read_text(),
+                                       object_hook=custom_hooks))
             else:
                 if imagename.exists():
                     self.log.warning('Deleting %s continuum image', key)
@@ -379,6 +384,9 @@ class DataManager:
                     info.update(auto_masking([val], imagename, nproc=nproc,
                                              b75=b75, nsigma=nsigma,
                                              log=self.log.info, **tclean_pars))
+                # Save info for resume
+                info_file.write_text(json.dumps(info, indent=4, cls=CustomObjEncoder))
+
             image_info[key] = info
 
         return image_info
@@ -541,11 +549,16 @@ class SelfcalDataManager(DataManager):
                         nsigma: Optional[float] = None,
                         nproc: int = 5,
                         suffix_ending: Optional[str] = None,
+                         resume: bool = False,
                         **tclean_args) -> Dict:
         """Clean stored continuum visibilities."""
-        info = self._clean_continuum({'cont_vis': self.cont_vis}, 'continuum',
-                                     nproc=nproc, nsigma=nsigma,
-                                     suffix_ending=suffix_ending, **tclean_args)
+        info = self._clean_continuum({'cont_vis': self.cont_vis},
+                                     'continuum',
+                                     nproc=nproc,
+                                     nsigma=nsigma,
+                                     suffix_ending=suffix_ending,
+                                     resume=resume,
+                                     **tclean_args)
 
         return info['cont_vis']
 
