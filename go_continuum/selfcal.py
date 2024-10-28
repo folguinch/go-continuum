@@ -38,7 +38,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
 
     # Initial clean
     args.log.info('Initial clean')
-    image_info = manager.clean_continuum(nproc=args.nproc[0], resume=resume)
+    image_info = manager.clean_continuum(nproc=args.nproc[0],
+                                         resume=args.resume)
     peak, rms = image_sn(image_info['fitsimage'])
     args.log.info('Image peak: %s', peak)
     args.log.info('Image rms: %s', rms)
