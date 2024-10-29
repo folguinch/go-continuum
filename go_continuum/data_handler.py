@@ -522,7 +522,7 @@ class SelfcalDataManager(DataManager):
     cont_vis: Optional[Path] = None
     """Continuum visibility name."""
 
-    def get_continuum_vis(self):
+    def get_continuum_vis(self, resume: bool = False):
         """Obtain continuum visibilities."""
         # Flags
         flags_file = self.config.get('selfcal', 'flags_file', fallback=None)
@@ -534,7 +534,8 @@ class SelfcalDataManager(DataManager):
 
         # Calculate visibilities
         cont_all, cont_avg = super().get_continuum_vis(intents=intents,
-                                                       flags_file=flags_file)
+                                                       flags_file=flags_file,
+                                                       resume=resume)
 
         # Set continuum visibilities
         if cont_all is not None:
@@ -547,11 +548,21 @@ class SelfcalDataManager(DataManager):
 
     def clean_continuum(self,
                         nsigma: Optional[float] = None,
-                        nproc: int = 5,
+                        nproc: int = 1,
                         suffix_ending: Optional[str] = None,
-                         resume: bool = False,
+                        resume: bool = False,
                         **tclean_args) -> Dict:
-        """Clean stored continuum visibilities."""
+        """Clean stored continuum visibilities.
+
+        Args:
+          nsigma: Optional. Number of rms levels to clean to.
+          nproc: Optional. Number of parallel processes.
+          suffix_ending: Optional. Additional ending for images.
+          resume: Optional. Skip if files found?
+
+        Returns:
+          A dictionary with image files and thresholds.
+        """
         info = self._clean_continuum({'cont_vis': self.cont_vis},
                                      'continuum',
                                      nproc=nproc,
