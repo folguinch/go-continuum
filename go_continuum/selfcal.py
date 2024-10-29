@@ -32,7 +32,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
     table = {}
 
     # Get continuum visibilities
-    manager.get_continuum_vis()
+    manager.get_continuum_vis(resume=args.resume)
     manager.init_weights()
     args.log.info('=' * 80)
 
@@ -56,9 +56,9 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
     i = 0
     nsigma = 3
     nsigmas = map(lambda x: float(x.strip()),
-                  manager.config['selfcal']['threshold_scale'])
-    solints = map(lambda x: float(x.strip()),
-                  manager.config['selfcal']['solint'])
+                  manager.config['selfcal']['threshold_scale'].split(','))
+    solints = map(lambda x: x.strip(),
+                  manager.config['selfcal']['solint'].split(','))
     for i, (nsigma, solint) in enumerate(zip(nsigmas, solints)):
         args.log.info('=' * 80)
         args.log.info('Iteration: %i', i + 1)
