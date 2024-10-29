@@ -65,13 +65,16 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         args.log.info('Cleaning to %fsigma level', nsigma)
 
         # Clean
-        suffix_ending = f'.niter{i + 1}'
+        suffix_ending = f'.selfcal{i}'
         image_info = manager.clean_continuum(nproc=args.nproc[0],
                                              nsigma=nsigma,
                                              suffix_ending=suffix_ending,
-                                             savemodel='modelcolumn')
+                                             savemodel='modelcolumn',
+                                             resume=args.resume)
         peak, rms = image_sn(image_info['fitsimage'])
-        table['iter'].append(f'{i + 1}')
+        args.log.info('Image %i peak: %s', i, peak)
+        args.log.info('Image %i rms: %s', i, rms)
+        table['iter'].append(f'{i}')
         table['image'].append(image_info['fitsimage'].name)
         table['threshold'] = np.append(table['threshold'],
                                        image_info['thresholds'][-1])
@@ -81,8 +84,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
 
         # Gaincal and applycal
         caltable = image_info['imagename'].with_suffix('.phase.cal')
-        args.log('Gain table: %s', caltable)
-        args.log('Solint: %s', solint)
+        args.log.info('Gain table: %s', caltable)
+        args.log.info('Solint: %s', solint)
         manager.self_calibrate(caltable, solint)
 
     # Amplitude selfcal?
@@ -105,8 +108,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
 
         # Amp selfcal table
         caltable = image_info['imagename'].with_suffix('.amp.cal')
-        args.log('Gain table: %s', caltable)
-        args.log('Solint: %s', ap_solint)
+        args.log.info('Gain table: %s', caltable)
+        args.log.info('Solint: %s', ap_solint)
         manager.self_calibrate(caltable, ap_solint, calmode='ap')
 
     # Final clean

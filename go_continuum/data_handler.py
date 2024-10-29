@@ -204,12 +204,12 @@ class DataManager:
             weighting = tclean_pars.get('weighting', 'natural')
             if weighting == 'briggs':
                 suffix += f".robust{tclean_pars.get('robust', '0.5')}"
+        if suffix_ending is not None:
+            suffix += suffix_ending
         if spw is not None:
             suffix += f'.spw{spw}.image{extension}'
         else:
             suffix += f'.image{extension}'
-        if suffix_ending is not None:
-            suffix += suffix_ending
 
         # Separate by EB?
         if uvdata is not None:
