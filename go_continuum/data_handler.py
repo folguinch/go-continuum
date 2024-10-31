@@ -327,6 +327,7 @@ class DataManager:
                          nsigma: Optional[float] = None,
                          nproc: int = 5,
                          suffix_ending: Optional[str] = None,
+                         tclean_nsigma: bool = False,
                          resume: bool = False,
                          **tclean_args) -> Dict:
         # Check intent
@@ -374,6 +375,7 @@ class DataManager:
                 if intent == 'continuum_control':
                     info.update(pb_clean([val], imagename, nproc=nproc,
                                          nsigma=nsigma, log=self.log.info,
+                                         tclean_nsigma=tclean_nsigma,
                                          **tclean_pars))
                 else:
                     if 'b75' in self.config['continuum']:
@@ -383,6 +385,7 @@ class DataManager:
                         b75 = None
                     info.update(auto_masking([val], imagename, nproc=nproc,
                                              b75=b75, nsigma=nsigma,
+                                             tclean_nsigma=tclean_nsigma,
                                              log=self.log.info, **tclean_pars))
                 # Save info for resume
                 info_file.write_text(json.dumps(info, indent=4, cls=CustomObjEncoder))
@@ -550,6 +553,7 @@ class SelfcalDataManager(DataManager):
                         nsigma: Optional[float] = None,
                         nproc: int = 1,
                         suffix_ending: Optional[str] = None,
+                        tclean_nsigma: bool = False,
                         resume: bool = False,
                         **tclean_args) -> Dict:
         """Clean stored continuum visibilities.
@@ -558,7 +562,9 @@ class SelfcalDataManager(DataManager):
           nsigma: Optional. Number of rms levels to clean to.
           nproc: Optional. Number of parallel processes.
           suffix_ending: Optional. Additional ending for images.
+          tclean_nsigma: Optional. Use `tclean` built-in nsigma?
           resume: Optional. Skip if files found?
+          tclean_args: Optional. Additional tclean parameters.
 
         Returns:
           A dictionary with image files and thresholds.
@@ -568,6 +574,7 @@ class SelfcalDataManager(DataManager):
                                      nproc=nproc,
                                      nsigma=nsigma,
                                      suffix_ending=suffix_ending,
+                                     tclean_nsigma=tclean_nsigma,
                                      resume=resume,
                                      **tclean_args)
 

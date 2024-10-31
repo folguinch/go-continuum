@@ -39,7 +39,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
     # Initial clean
     args.log.info('Initial clean')
     image_info = manager.clean_continuum(nproc=args.nproc[0],
-                                         resume=args.resume)
+                                         resume=args.resume,
+                                         tclean_nsigma=args.tclean_nsigma)
     peak, rms = image_sn(image_info['fitsimage'])
     args.log.info('Image peak: %s', peak)
     args.log.info('Image rms: %s', rms)
@@ -96,6 +97,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         image_info = manager.clean_continuum(nproc=args.nproc[0],
                                              nsigma=nsigma,
                                              suffix_ending=suffix_ending,
+                                             tclean_nsigma=args.tclean_nsigma,
                                              savemodel='modelcolumn')
         peak, rms = image_sn(image_info['fitsimage'])
         table['iter'].append(f'{i + 1}')
@@ -117,6 +119,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
     suffix_ending = '.final'
     image_info = manager.clean_continuum(nproc=args.nproc[0],
                                          nsigma=nsigma,
+                                         tclean_nsigma=args.tclean_nsigma,
                                          suffix_ending=suffix_ending)
     peak, rms = image_sn(image_info['fitsimage'])
     table['iter'].append('final')
@@ -153,6 +156,8 @@ def selfcal(args: Optional[Sequence] = None) -> None:
     )
     parser.add_argument('--resume', action='store_true',
                         help='Resume unfinished steps')
+    parser.add_argument('--tclean_nsigma', action='store_true',
+                        help='Use tclean built-in nsigma')
     parser.add_argument('-b', '--base',
                         action=actions.NormalizePath,
                         default=Path('./selfcal'),
