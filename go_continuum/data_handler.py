@@ -6,7 +6,7 @@ import json
 import os
 
 #from casaplotms import plotms
-from casatasks import initweights, gaincal, applycal
+from casatasks import initweights, gaincal, applycal, rmtables
 from goco_helpers.clean_tasks import (get_tclean_params, tclean_parallel,
                                       pb_clean, auto_masking)
 from goco_helpers.config_generator import read_config
@@ -580,8 +580,20 @@ class SelfcalDataManager(DataManager):
     def self_calibrate(self,
                        caltable: Path,
                        solint: str,
-                       calmode: str = 'p'):
-        """Calculate gain table and apply it."""
+                       calmode: str = 'p'
+                       resume: bool = False):
+        """Calculate gain table and apply it.
+
+        If resume is `True`, then only the `gaincal` calculation is skipped.
+        The table will be applied either way, so the continuum visibilities
+        should be deleted before running again.
+
+        Args:
+          caltable: Calibration table file name.
+          solint: Solution interval.
+          calmode: Optional. Calibration mode.
+          resume: Optional. Skip cal table calculation?
+        """
         # Gain table
         cal_params = {'field': self.config['selfcal']['field'],
                       'refant': self.config['selfcal']['refant'],
@@ -590,12 +602,18 @@ class SelfcalDataManager(DataManager):
         combine = self.config.get('selfcal', 'combine', fallback='')
         if combine is not None:
             cal_params['combine'] = combine
-        self.log.info('Other gaincal parameters: %s', cal_params)
-        gaincal(vis=f'{self.cont_vis}',
-                caltable=f'{caltable}',
-                calmode=calmode,
-                solint=solint,
-                **cal_params)
+        if caltable.exists() and resume:
+            self.log.info('Skipping caltable calculation')
+        else:
+            if caltable.exists():
+                self.log.info('Removing calibration table')
+                rmtables(f'{caltable}')
+            self.log.info('Other gaincal parameters: %s', cal_params)
+            gaincal(vis=f'{self.cont_vis}',
+                    caltable=f'{caltable}',
+                    calmode=calmode,
+                    solint=solint,
+                    **cal_params)
 
         # Applycal
         if 'spw' in cal_params.get('combine', ''):
