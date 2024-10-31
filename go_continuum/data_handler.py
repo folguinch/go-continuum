@@ -621,6 +621,6 @@ class SelfcalDataManager(DataManager):
         applymode = self.config.get('selfcal', 'applymode', fallback='calonly')
         self.log.info('Apply mode: %s', applymode)
         applycal(vis=f'{self.cont_vis}',
-                 gaintable=[caltable],
+                 gaintable=[f'{caltable}'],
                  applymode=applymode,
                  interp='linear')
