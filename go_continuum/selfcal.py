@@ -86,7 +86,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         caltable = image_info['imagename'].with_suffix('.phase.cal')
         args.log.info('Gain table: %s', caltable)
         args.log.info('Solint: %s', solint)
-        manager.self_calibrate(caltable, solint)
+        manager.self_calibrate(caltable, solint, resume=args.resume)
 
     # Amplitude selfcal?
     if ((ap_solint := manager.config['selfcal'].get('ap', fallback=None))
@@ -110,7 +110,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         caltable = image_info['imagename'].with_suffix('.amp.cal')
         args.log.info('Gain table: %s', caltable)
         args.log.info('Solint: %s', ap_solint)
-        manager.self_calibrate(caltable, ap_solint, calmode='ap')
+        manager.self_calibrate(caltable, ap_solint, calmode='ap',
+                               resume=args.resume)
 
     # Final clean
     suffix_ending = '.final'
