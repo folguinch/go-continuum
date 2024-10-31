@@ -587,7 +587,7 @@ class SelfcalDataManager(DataManager):
                       'refant': self.config['selfcal']['refant'],
                       'gaintype': self.config.get('selfcal', 'gaintype',
                                                   fallback='G')}
-        combine = self.config.get('selfcal', 'combine', fallback=None)
+        combine = self.config.get('selfcal', 'combine', fallback='')
         if combine is not None:
             cal_params['combine'] = combine
         self.log.info('Other gaincal parameters: %s', cal_params)
@@ -598,7 +598,7 @@ class SelfcalDataManager(DataManager):
                 **cal_params)
 
         # Applycal
-        if 'spw' in combine:
+        if 'spw' in cal_params.get('combine', ''):
             raise NotImplementedError('SPW mapping not implemented yet')
         applymode = self.config.get('selfcal', 'applymode', fallback='calonly')
         self.log.info('Apply mode: %s', applymode)
