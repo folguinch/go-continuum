@@ -587,7 +587,7 @@ class SelfcalDataManager(DataManager):
     def self_calibrate(self,
                        caltable: Path,
                        solint: str,
-                       iteration: int: 0,
+                       iteration: int = 0,
                        calmode: str = 'p',
                        resume: bool = False):
         """Calculate gain table and apply it.
