@@ -587,6 +587,7 @@ class SelfcalDataManager(DataManager):
     def self_calibrate(self,
                        caltable: Path,
                        solint: str,
+                       iteration: int: 0,
                        calmode: str = 'p',
                        resume: bool = False):
         """Calculate gain table and apply it.
@@ -595,20 +596,32 @@ class SelfcalDataManager(DataManager):
         The table will be applied either way, so the continuum visibilities
         should be deleted before running again.
 
+        The iteration number is used to define parameters specific for certain
+        runs: `combine` and `gaintype`.
+
         Args:
           caltable: Calibration table file name.
           solint: Solution interval.
+          iteration: Otional. Iteration number.
           calmode: Optional. Calibration mode.
           resume: Optional. Skip cal table calculation?
         """
-        # Gain table
+        # Gaincal parameters
+        gaintype = self.config.get('selfcal', 'gaintype', fallback='G')
+        if ',' in gaintype:
+            gaintype = gaintype.split(',')[iteration].strip()
         cal_params = {'field': self.config['selfcal']['field'],
                       'refant': self.config['selfcal']['refant'],
-                      'gaintype': self.config.get('selfcal', 'gaintype',
-                                                  fallback='G')}
-        combine = self.config.get('selfcal', 'combine', fallback='')
+                      'gaintype': gaintype}
+        combine = self.config.get('selfcal', 'combine', fallback=None)
+        if combine is not None and ';' in combine:
+            combine = combine.split(';')[iteration].strip()
+            if 'none' in combine:
+                combine = None
         if combine is not None:
             cal_params['combine'] = combine
+
+        # Gain table
         if caltable.exists() and resume:
             self.log.info('Skipping caltable calculation')
         else:

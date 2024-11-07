@@ -88,20 +88,26 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         caltable = image_info['imagename'].with_suffix('.phase.cal')
         args.log.info('Gain table: %s', caltable)
         args.log.info('Solint: %s', solint)
-        manager.self_calibrate(caltable, solint, resume=args.resume)
+        manager.self_calibrate(caltable, solint, iteration=i,
+                               resume=args.resume)
 
     # Amplitude selfcal?
     if ((ap_solint := manager.config['selfcal'].get('ap', fallback=None))
         is not None):
         # Get model column
-        suffix_ending = f'.niter{i + 2}'
+        i += 1
+        suffix_ending = f'.selfcal{i}'
         image_info = manager.clean_continuum(nproc=args.nproc[0],
                                              nsigma=nsigma,
                                              suffix_ending=suffix_ending,
                                              tclean_nsigma=args.tclean_nsigma,
                                              savemodel='modelcolumn')
         peak, rms = image_sn(image_info['fitsimage'])
-        table['iter'].append(f'{i + 1}')
+        args.log.info('=' * 80)
+        args.log.info('Before amplitude selfcal:')
+        args.log.info('Image %i peak: %s', i, peak)
+        args.log.info('Image %i rms: %s', i, rms)
+        table['iter'].append(f'{i}')
         table['image'].append(image_info['fitsimage'].name)
         table['threshold'] = np.append(table['threshold'],
                                        image_info['thresholds'][-1])
@@ -113,7 +119,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         caltable = image_info['imagename'].with_suffix('.amp.cal')
         args.log.info('Gain table: %s', caltable)
         args.log.info('Solint: %s', ap_solint)
-        manager.self_calibrate(caltable, ap_solint, calmode='ap',
+        manager.self_calibrate(caltable, ap_solint, iteration=i+1, calmode='ap',
                                resume=args.resume)
 
     # Final clean
@@ -123,6 +129,10 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
                                          tclean_nsigma=args.tclean_nsigma,
                                          suffix_ending=suffix_ending)
     peak, rms = image_sn(image_info['fitsimage'])
+    args.log.info('=' * 80)
+    args.log.info('Final image:')
+    args.log.info('Image %i peak: %s', i, peak)
+    args.log.info('Image %i rms: %s', i, rms)
     table['iter'].append('final')
     table['image'].append(image_info['fitsimage'].name)
     table['threshold'] = np.append(table['threshold'],
