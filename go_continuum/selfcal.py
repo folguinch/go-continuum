@@ -119,7 +119,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         caltable = image_info['imagename'].with_suffix('.amp.cal')
         args.log.info('Gain table: %s', caltable)
         args.log.info('Solint: %s', ap_solint)
-        manager.self_calibrate(caltable, ap_solint, iteration=i+1, calmode='ap',
+        manager.self_calibrate(caltable, ap_solint, iteration=i, calmode='ap',
                                resume=args.resume)
 
     # Final clean
