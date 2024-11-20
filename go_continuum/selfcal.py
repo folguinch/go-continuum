@@ -72,7 +72,8 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
                                              suffix_ending=suffix_ending,
                                              savemodel='modelcolumn',
                                              tclean_nsigma=args.tclean_nsigma,
-                                             resume=args.resume)
+                                             resume=args.resume,
+                                             noisethreshold=nsigma)
         peak, rms = image_sn(image_info['fitsimage'])
         args.log.info('Image %i peak: %s', i, peak)
         args.log.info('Image %i rms: %s', i, rms)
