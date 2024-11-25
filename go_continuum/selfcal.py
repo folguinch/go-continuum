@@ -65,6 +65,13 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
         args.log.info('Iteration: %i', i + 1)
         args.log.info('Cleaning to %fsigma level', nsigma)
 
+        # Determine noisethreshold
+        if 'noisethresholds' in manager.config['selfcal']:
+            noisethreshold = manager.config['selfcal']['noisethresholds']
+            noisethreshold = float(noisethreshold.split(',')[i].strip())
+        else:
+            noisethreshold = nsigma
+
         # Clean
         suffix_ending = f'.selfcal{i}'
         image_info = manager.clean_continuum(nproc=args.nproc[0],
@@ -73,7 +80,7 @@ def _selfcal_pipe(args: 'argparse.Namespace') -> None:
                                              savemodel='modelcolumn',
                                              tclean_nsigma=args.tclean_nsigma,
                                              resume=args.resume,
-                                             noisethreshold=nsigma)
+                                             noisethreshold=noisethreshold)
         peak, rms = image_sn(image_info['fitsimage'])
         args.log.info('Image %i peak: %s', i, peak)
         args.log.info('Image %i rms: %s', i, rms)
