@@ -8,13 +8,13 @@ readme = "README.md"
 packages = [{include = "go_continuum"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<4.0"
-astropy = "^6.0.0"
+python = ">=3.11,<4.0"
+astropy = "^7.0.0"
 casatasks = "^6.6.0.20"
 casatools = "^6.6.0.20"
 casadata = "^2023.9.18"
+numpy = "^2.3"
 spectral-cube = "^0.6.5"
-numpy = "^1.26.3"
 
 
 [build-system]
