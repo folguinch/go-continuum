@@ -719,14 +719,17 @@ def afoli_iter_data(images: 'pathlib.Path',
 
     # Iterate cubes
     afoli_pars = get_afoli_pars(config)
-    flux_unit = u.Unit(config['flux_unit'])
+    flux_unit = u.Unit(config.get('flux_unit', fallback=u.mJy/u.beam))
     line_flags = {}
     for imagename in images:
+        log('-' * 15)
+        log(f'Working on image: {imagename}')
         # Output flags
         chan_flags_file = imagename.with_suffix('.line_chan_flags.txt')
         freq_flags_file = imagename.with_suffix('.line_freq_flags.txt')
         plot_file = plot_dir / imagename.with_suffix('.spec.afoli.png').name
         if freq_flags_file.exists() and resume:
+            log(f'Loading flags file: {freq_flags_file}')
             line_flags[freq_flags_file.name] = flags_from_file(freq_flags_file)
             continue
 

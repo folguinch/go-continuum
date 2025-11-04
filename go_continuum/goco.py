@@ -90,13 +90,13 @@ def goco(args: Optional[Sequence] = None) -> None:
     pipe = [_prep_steps, _get_data_manager, _goco_pipe]
     steps = {
         'dirty': True,
-        'selfcal': True,
+        #'selfcal': True,
         'afoli': True,
         'continuum': True,
         'pbclean': True,
         'clean_cont': True,
-        'contsub': True,
-        'cubes': True,
+        'contsub': False,
+        #'cubes': True,
     }
 
     # Argparse configuration
@@ -119,6 +119,7 @@ def goco(args: Optional[Sequence] = None) -> None:
     parser.add_argument('-n', '--nproc', type=int, nargs=1, default=[5],
                         help='Number of processes for parallel steps')
     parser.add_argument('--skip', nargs='+', choices=list(steps.keys()),
+                        default=[],
                         help='Skip these steps')
     parser.add_argument('--pos', metavar=('X', 'Y'), nargs=2, type=int,
                         help='Position of the representative spectrum')

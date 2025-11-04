@@ -191,6 +191,11 @@ class DataManager:
           suffix_ending: Optional. Append at the end of the auto suffix.
           tclean_pars: Optional. Additional parameters for naming.
         """
+        # Check in config
+        opt = 'image_name' if spw is None else f'image_name_spw{spw}'
+        if intent in self.config and opt in self.config[intent]:
+            return Path(self.config[intent][opt])
+
         # Imtype
         if fits:
             extension = '.fits'
@@ -204,6 +209,8 @@ class DataManager:
             weighting = tclean_pars.get('weighting', 'natural')
             if weighting == 'briggs':
                 suffix += f".robust{tclean_pars.get('robust', '0.5')}"
+            if 'nsigma' in tclean_pars:
+                suffix += f".nsigma{tclean_pars['nsigma']}"
         if suffix_ending is not None:
             suffix += suffix_ending
         if spw is not None:
@@ -235,7 +242,8 @@ class DataManager:
         """
         imagenames = []
         for spw in range(self.nspws):
-            imagenames.append(self.get_imagename(intent, spw=spw,
+            imagenames.append(self.get_imagename(intent,
+                                                 spw=spw,
                                                  fits=fits))
 
         return imagenames
@@ -327,7 +335,7 @@ class DataManager:
                          nsigma: Optional[float] = None,
                          nproc: int = 5,
                          suffix_ending: Optional[str] = None,
-                         tclean_nsigma: bool = False,
+                         tclean_nsigma: bool = True,
                          resume: bool = False,
                          **tclean_args) -> Dict:
         # Check intent
@@ -356,7 +364,8 @@ class DataManager:
         for key, val in vis.items():
             # Image name
             imagename = self.get_imagename(intent, uvdata=val,
-                                           tclean_pars=tclean_pars,
+                                           tclean_pars=(tclean_pars |
+                                                        {'nsigma': nsigma}),
                                            suffix_ending=suffix_ending)
             info = {'imagename': imagename}
             info_file = imagename.with_suffix('.info.json')
@@ -368,11 +377,13 @@ class DataManager:
                 info.update(json.loads(info_file.read_text(),
                                        object_hook=custom_hooks))
             else:
+                self.log.info('Cleaning: %s (%s)', key, val)
                 if imagename.exists():
                     self.log.warning('Deleting %s continuum image', key)
                     os.system(f"rm -rf {imagename.with_suffix('.*')}")
                 imagename = imagename.parent / imagename.stem
                 if intent == 'continuum_control':
+                    self.log.debug('Clean parameters: %s', tclean_pars)
                     info.update(pb_clean([val], imagename, nproc=nproc,
                                          nsigma=nsigma, log=self.log.info,
                                          tclean_nsigma=tclean_nsigma,
@@ -383,6 +394,7 @@ class DataManager:
                         b75 = float(b75[0]) * u.Unit(b75[1])
                     else:
                         b75 = None
+                    self.log.debug('Clean parameters: %s', tclean_pars)
                     info.update(auto_masking([val], imagename, nproc=nproc,
                                              b75=b75, nsigma=nsigma,
                                              tclean_nsigma=tclean_nsigma,
@@ -431,7 +443,7 @@ class DataManager:
                 if cont_all.exists():
                     self.log.warning('Deleting all channel continuum MS')
                     os.system(f'rm -rf {cont_all}')
-                self.log.info('Calculating all channels continum')
+                self.log.info('Calculating all channels continuum')
                 get_continuum(self.concat_uvdata, cont_all,
                               config=self.config['continuum'],
                               plotdir=self.environ.plots, spw='0')
@@ -460,7 +472,7 @@ class DataManager:
                     flags_file.write_text(json.dumps(flags, indent=4))
 
                 # Get flagged continuum
-                self.log.info('Calculating line-free continum')
+                self.log.info('Calculating line-free continuum')
                 get_continuum(self.concat_uvdata, cont_avg,
                               config=self.config['continuum'], flags=flags,
                               plotdir=self.environ.plots, spw='0')

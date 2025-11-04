@@ -31,6 +31,7 @@ class Environ():
 
     def do_check_env(self):
         """Check that all directories exist."""
+        print(asdict(self))
         for path in asdict(self).values():
             path.mkdir(exist_ok=True)
 
@@ -64,7 +65,7 @@ class GoCoEnviron(Environ):
         if self.continuum_control is None:
             self.continuum_control = self.basedir / 'continuum_control'
         if self.continuum is None:
-            self.continuum_auto = self.basedir / 'continuum_auto'
+            self.continuum = self.basedir / 'continuum_auto'
         if self.cubes is None:
             self.cubes = self.basedir / 'cubes'
         super().__post_init__(check_env)
