@@ -22,7 +22,7 @@ in the line-free channel selection. The general procedure of AFOLI is:
     1. Generates a masked spectrum with a mask containing: the edges of the
     spectrum (`extremes` parameter), requested flagged channels (`flagchans`),
     and invalid values (`invalid_values`).
-    2. Runs sigma-clip un the spectrum to filter out line emission/absorption
+    2. Runs sigma-clip in the spectrum to filter out line emission/absorption
     (`sigma`, `censtat` and `niter` parameters).
     3. It dilates the mask by requested amount (`dilate`).
     4. Removes masked section below a minimum width (`min_width`).
