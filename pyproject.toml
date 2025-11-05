@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "go-continuum"
-version = "3.0.0"
+version = "3.1.0"
 description = "Continuum subtraction pipeline for ALMA data"
 authors = ["Fernando Olguin <f.olguin.ch@gmail.com>"]
 license = "MIT"
