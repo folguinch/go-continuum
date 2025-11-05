@@ -132,7 +132,7 @@ def filter_min_width(mask: npt.ArrayLike, min_width: int) -> npt.ArrayLike:
 
     return mask
 
-def linreg_stat(x: Union['astropy.fits.PrimaryHDU', npt.ArrayLike]) -> float:
+def linreg_stat(x: Union['astropy.io.fits.PrimaryHDU', npt.ArrayLike]) -> float:
     """Statistic function for `sigmaclip` based on linear regression."""
     # Data arrays
     try:
@@ -562,7 +562,8 @@ def get_plot(xlabel: str = 'Iteration number',
              ylabel_left: str = 'Average intensity',
              ylabel_right: str = 'Masked channels',
              naxes: int = 2
-             ) -> Tuple['matplot.Figure', Tuple['matplotlib.Axes']]:
+             ) -> Tuple['matplotlib.figure.Figure',
+                        Tuple['matplotlib.axes.Axes']]:
     """Initialize the stats and spectrum plot.
 
     Args:
@@ -606,8 +607,8 @@ def get_plot(xlabel: str = 'Iteration number',
     return fig, axs
 
 def plot_spectrum(spectrum: npt.ArrayLike,
-                  fig: Optional['matplotlib.Figure'] = None,
-                  ax: Optional['matplotlib.Axes'] = None,
+                  fig: Optional['matplotlib.figure.Figure'] = None,
+                  ax: Optional['matplotlib.axes.Axes'] = None,
                   filename: Optional['pathlib.Path'] = None,
                   continuum: Optional[float] = None,
                   mask: Optional[Sequence[slice]] = None,
@@ -645,7 +646,7 @@ def plot_spectrum(spectrum: npt.ArrayLike,
     if filename is not None and fig is not None:
         fig.savefig(filename, bbox_inches='tight')
 
-def plot_mask(ax: 'matplotlib.Axes',
+def plot_mask(ax: 'matplotlib.axes.Axes',
               chans: List[slice],
               color: str = 'r') -> None:
     """Plot masked region.
