@@ -95,7 +95,7 @@ def goco(args: Optional[Sequence] = None) -> None:
         'continuum': True,
         'pbclean': True,
         'clean_cont': True,
-        'contsub': False,
+        'contsub': True,
         #'cubes': True,
     }
 
