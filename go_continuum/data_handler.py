@@ -374,7 +374,7 @@ class DataManager:
             if resume and imagename.exists():
                 self.log.info('Skipping %s continuum image', key)
                 self.log.info('Loading info file: %s', info_file)
-                info.update(json.loads(info_file.read_text(),
+                info.update(json.loads(info_file.read_text(), # pylint: disable=unspecified-encoding
                                        object_hook=custom_hooks))
             else:
                 self.log.info('Cleaning: %s (%s)', key, val)
@@ -400,7 +400,8 @@ class DataManager:
                                              tclean_nsigma=tclean_nsigma,
                                              log=self.log.info, **tclean_pars))
                 # Save info for resume
-                info_file.write_text(json.dumps(info, indent=4, cls=CustomObjEncoder))
+                info_file.write_text( # pylint: disable=unspecified-encoding
+                    json.dumps(info, indent=4, cls=CustomObjEncoder))
 
             image_info[key] = info
 
