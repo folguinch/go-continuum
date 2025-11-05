@@ -68,6 +68,7 @@ def _goco_pipe(args: 'argparse.Namespace') -> None:
         args.log.info('Continuum visibilities:')
         args.log.info('*' * 15)
         args.manager.get_continuum_vis(pbclean=args.steps['pbclean'],
+                                       clean_cont=args.steps['clean_cont'],
                                        nproc=args.nproc[0],
                                        resume=args.resume)
 
@@ -83,18 +84,19 @@ def goco(args: Optional[Sequence] = None) -> None:
     """GoContinuum main program.
 
     Args:
-      args: optional; command line args.
+      args: Optional. Command line args.
     """
     # Pipe and steps
     pipe = [_prep_steps, _get_data_manager, _goco_pipe]
     steps = {
         'dirty': True,
-        'selfcal': True,
+        #'selfcal': True,
         'afoli': True,
         'continuum': True,
         'pbclean': True,
+        'clean_cont': True,
         'contsub': True,
-        'cubes': True,
+        #'cubes': True,
     }
 
     # Argparse configuration
@@ -117,6 +119,7 @@ def goco(args: Optional[Sequence] = None) -> None:
     parser.add_argument('-n', '--nproc', type=int, nargs=1, default=[5],
                         help='Number of processes for parallel steps')
     parser.add_argument('--skip', nargs='+', choices=list(steps.keys()),
+                        default=[],
                         help='Skip these steps')
     parser.add_argument('--pos', metavar=('X', 'Y'), nargs=2, type=int,
                         help='Position of the representative spectrum')
@@ -125,10 +128,7 @@ def goco(args: Optional[Sequence] = None) -> None:
     #                    help='Measurement sets')
     parser.add_argument('configfile', action=actions.CheckFile, nargs=1,
                         help='Configuration file name')
-    parser.set_defaults(
-        manager=None,
-        steps=steps,
-    )
+    parser.set_defaults(manager=None, steps=steps)
 
     # Read and process
     if args is None:

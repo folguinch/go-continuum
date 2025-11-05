@@ -22,7 +22,7 @@ in the line-free channel selection. The general procedure of AFOLI is:
     1. Generates a masked spectrum with a mask containing: the edges of the
     spectrum (`extremes` parameter), requested flagged channels (`flagchans`),
     and invalid values (`invalid_values`).
-    2. Runs sigma-clip un the spectrum to filter out line emission/absorption
+    2. Runs sigma-clip in the spectrum to filter out line emission/absorption
     (`sigma`, `censtat` and `niter` parameters).
     3. It dilates the mask by requested amount (`dilate`).
     4. Removes masked section below a minimum width (`min_width`).
@@ -92,9 +92,12 @@ def flags_from_file(filename: 'pathlib.Path',
     flags = []
     for line in lines.split('\n'):
         initial, final = line.split('~')
-        final = u.Quantity(final)
-        initial = float(initial) * final.unit
-        flags.append((initial, final))
+        if flag_type == 'freq':
+            final = u.Quantity(final)
+            initial = float(initial) * final.unit
+            flags.append((initial, final))
+        else:
+            raise NotImplementedError(f'Flag type {flag_type} not implemented')
 
     return flags
 
@@ -129,7 +132,7 @@ def filter_min_width(mask: npt.ArrayLike, min_width: int) -> npt.ArrayLike:
 
     return mask
 
-def linreg_stat(x: Union['astropy.fits.PrimaryHDU', npt.ArrayLike]) -> float:
+def linreg_stat(x: Union['astropy.io.fits.PrimaryHDU', npt.ArrayLike]) -> float:
     """Statistic function for `sigmaclip` based on linear regression."""
     # Data arrays
     try:
@@ -479,19 +482,21 @@ def afoli(spectrum: npt.ArrayLike,
     basic_mask_pars = {'edges': extremes,
                        'flagchans': flagchans,
                        'invalid_values': invalid_values}
-    filtered, cont, cstd = find_continuum(spectrum,
-                                          dilate=dilate,
-                                          min_width=min_width,
-                                          min_gap=min_gap,
-                                          table=table,
-                                          log=log,
-                                          **basic_mask_pars,
-                                          **sigmaclip_pars)
+    #filtered, cont, cstd = find_continuum(spectrum,
+    filtered, cont, _ = find_continuum(spectrum,
+                                       dilate=dilate,
+                                       min_width=min_width,
+                                       min_gap=min_gap,
+                                       table=table,
+                                       log=log,
+                                       **basic_mask_pars,
+                                       **sigmaclip_pars)
     nfil = np.ma.count_masked(filtered)
     ntot = filtered.data.size
 
     # Get sigma_clip steps
-    scpoints, scmedians, scmeans, scstds = get_sigma_clip_steps(
+    #scpoints, scmedians, scmeans, scstds = get_sigma_clip_steps(
+    scpoints, _, scmeans, scstds = get_sigma_clip_steps(
         basic_masking(spectrum, log=log, **basic_mask_pars),
         **sigmaclip_pars,
     )
@@ -557,7 +562,8 @@ def get_plot(xlabel: str = 'Iteration number',
              ylabel_left: str = 'Average intensity',
              ylabel_right: str = 'Masked channels',
              naxes: int = 2
-             ) -> Tuple['matplot.Figure', Tuple['matplotlib.Axes']]:
+             ) -> Tuple['matplotlib.figure.Figure',
+                        Tuple['matplotlib.axes.Axes']]:
     """Initialize the stats and spectrum plot.
 
     Args:
@@ -601,8 +607,8 @@ def get_plot(xlabel: str = 'Iteration number',
     return fig, axs
 
 def plot_spectrum(spectrum: npt.ArrayLike,
-                  fig: Optional['matplotlib.Figure'] = None,
-                  ax: Optional['matplotlib.Axes'] = None,
+                  fig: Optional['matplotlib.figure.Figure'] = None,
+                  ax: Optional['matplotlib.axes.Axes'] = None,
                   filename: Optional['pathlib.Path'] = None,
                   continuum: Optional[float] = None,
                   mask: Optional[Sequence[slice]] = None,
@@ -640,7 +646,7 @@ def plot_spectrum(spectrum: npt.ArrayLike,
     if filename is not None and fig is not None:
         fig.savefig(filename, bbox_inches='tight')
 
-def plot_mask(ax: 'matplotlib.Axes',
+def plot_mask(ax: 'matplotlib.axes.Axes',
               chans: List[slice],
               color: str = 'r') -> None:
     """Plot masked region.
@@ -714,14 +720,17 @@ def afoli_iter_data(images: 'pathlib.Path',
 
     # Iterate cubes
     afoli_pars = get_afoli_pars(config)
-    flux_unit = u.Unit(config['flux_unit'])
+    flux_unit = u.Unit(config.get('flux_unit', fallback=u.mJy/u.beam))
     line_flags = {}
     for imagename in images:
+        log('-' * 15)
+        log(f'Working on image: {imagename}')
         # Output flags
         chan_flags_file = imagename.with_suffix('.line_chan_flags.txt')
         freq_flags_file = imagename.with_suffix('.line_freq_flags.txt')
         plot_file = plot_dir / imagename.with_suffix('.spec.afoli.png').name
         if freq_flags_file.exists() and resume:
+            log(f'Loading flags file: {freq_flags_file}')
             line_flags[freq_flags_file.name] = flags_from_file(freq_flags_file)
             continue
 
