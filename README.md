@@ -1,5 +1,8 @@
 # GoContinuum
 
+[![DOI](https://zenodo.org/badge/177511811.svg)](https://zenodo.org/badge/latestdoi/177511811)
+[![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint)
+
 This program uses an asymmetric sigma clip algorithm to find line-free channels
 in the spectrum of the maximum of a data cube. It then uses these channels to
 produce a continuum subtracted ms and quality assurance continuum images. 
