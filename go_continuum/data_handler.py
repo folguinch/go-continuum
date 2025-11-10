@@ -395,6 +395,7 @@ class DataManager:
                     else:
                         b75 = None
                     self.log.debug('Clean parameters: %s', tclean_pars)
+                    tclean_pars.setdefault('pbcor', True)
                     info.update(auto_masking([val], imagename, nproc=nproc,
                                              b75=b75, nsigma=nsigma,
                                              tclean_nsigma=tclean_nsigma,
