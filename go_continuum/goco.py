@@ -73,11 +73,24 @@ def _goco_pipe(args: 'argparse.Namespace') -> None:
                                        resume=args.resume)
 
     # Contsub
-    if args.steps['contsub']:
+    if args.steps['contsub'] or args.steps['cubes']:
         args.log.info('*' * 15)
         args.log.info('Contsub visibilities:')
         args.log.info('*' * 15)
-        args.manager.get_contsub_vis(resume=args.resume)
+        contsub_vis = args.manager.get_contsub_vis(resume=args.resume)
+        if args.steps['cubes']:
+            args.log.info('*' * 15)
+            args.log.info('Cleaning cubes:')
+            args.log.info('*' * 15)
+            for spw in range(args.manager.nspws):
+                args.log.info('-' * 15)
+                args.log.info('Calculating cube for spw%s', spw)
+                args.manager.clean_cube('clean_cubes',
+                                        spw,
+                                        uvdata=[contsub_vis],
+                                        nproc=args.nproc[0],
+                                        resume=args.resume)
+
     args.log.info('GoCo pipe finished, bye bye!')
 
 def goco(args: Optional[Sequence] = None) -> None:
@@ -96,7 +109,7 @@ def goco(args: Optional[Sequence] = None) -> None:
         'pbclean': True,
         'clean_cont': True,
         'contsub': True,
-        #'cubes': True,
+        'cubes': True,
     }
 
     # Argparse configuration

@@ -52,7 +52,7 @@ class GoCoEnviron(Environ):
     """Directory for continuum control images."""
     continuum: Optional[Path] = None
     """Directory for continuum images."""
-    cubes: Optional[Path] = None
+    clean_cubes: Optional[Path] = None
     """Directory for data cubes."""
     plots: Optional[Path] = None
     """Directory for plots."""
@@ -66,7 +66,7 @@ class GoCoEnviron(Environ):
             self.continuum_control = self.basedir / 'continuum_control'
         if self.continuum is None:
             self.continuum = self.basedir / 'continuum_auto'
-        if self.cubes is None:
-            self.cubes = self.basedir / 'cubes'
+        if self.clean_cubes is None:
+            self.clean_cubes = self.basedir / 'cubes'
         super().__post_init__(check_env)
 

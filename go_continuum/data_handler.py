@@ -256,40 +256,99 @@ class DataManager:
             tasks.concat(vis=vis, concatvis=f'{self.concat_uvdata}')
             self.set_concat_spws()
 
-    def clean_cube(self, intent: str, spw: int, nproc: int = 5,
-                   use_fits: bool = False) -> Path:
+    def automask_pars(self, intent: str):
+        """Parameters for auto masking."""
+        # Baseline 75 percentile
+        if 'b75' in self.config[intent]:
+            b75 = self.config[intent]['b75'].split()
+            b75 = float(b75[0]) * u.Unit(b75[1])
+        else:
+            b75 = None
+
+        # Is 7m+12m?
+        arrays = self.config.get(intent, 'arrays', fallback='12m')
+        is_combined = ('7m' in arrays and '12m' in arrays)
+        is_aca = arrays == '7m'
+
+        return b75, is_combined, is_aca
+
+    def clean_cube(self,
+                   intent: str,
+                   spw: int,
+                   uvdata: Sequence[Path] = None,
+                   nproc: int = 5,
+                   use_fits: bool = False,
+                   resume: bool = False) -> Path:
         """Clean data for requested `intent`.
         
         Args:
           intent: Type of imaging.
           spw: SPW to clean
-          nproc: Optional; Number of processes.
-          use_fits: Optional; Export and use image to FITS?
+          uvdata: Optional. MS for imaging.
+          nproc: Optional. Number of processes.
+          use_fits: Optional. Export and use image to FITS?
+          resume: Optional. Resume from previous attempt.
 
         Returns:
           Image file name.
         """
         # Check intent:
-        if intent not in ['dirty', 'yclean', 'tclean']:
+        if intent not in ['dirty', 'clean_cubes']:
             raise NotImplementedError(f'Intent `{intent}` not recognized')
+        if intent == 'clean_cubes':
+            method = self.config.get(intent, 'method', fallback=None)
+            if method is None:
+                raise ValueError('No method set for cube cleaning')
+            elif method not in ('yclean', 'automask', 'custom'):
+                raise NotImplementedError(f'Method `{method}` not recognized')
+        else:
+            method = None
 
         # Get tclean parameters
         tclean_pars = get_tclean_params(self.config[intent])
         if intent == 'dirty':
             tclean_pars.update({'niter': 0})
+        else:
+            if method == 'automask':
+                nsigma = self.config.getfloat(intent, 'nsigma', fallback=3)
+            elif method == 'custom':
+                nsigma = self.config.getfloat(intent, 'nsigma', fallback=0.0)
+                tclean_pars.update({'nsigma': nsigma})
         tclean_pars = CLEAN_DEFAULTS | tclean_pars
         spw_str = ','.join(map(str, self.concat_spws[spw]))
         tclean_pars.update({'specmode': 'cube', 'spw': spw_str})
 
+        # Check uvdata
+        if uvdata is None:
+            uvdata = [self.concat_uvdata]
+
         # Run tclean
         imagename = self.get_imagename(intent, spw=spw)
-        if intent == 'yclean':
-            raise NotImplementedError
+        if method == 'yclean':
+            raise NotImplementedError('YCLEAN not implemented yet')
+        elif method == 'automask':
+            imagename = self.get_imagename(intent, spw=spw,
+                                           tclean_pars=(tclean_pars |
+                                                        {'nsigma': nsigma}))
+            if resume and imagename.exists():
+                self.log.info('Skipping imaging %s', imagename)
+            else:
+                self.log.info('Cleaning cube: %s', imagename)
+                if imagename.exists():
+                    self.log.warning('Deleting %s image', imagename)
+                    os.system(f"rm -rf {imagename.with_suffix('.*')}")
+                imagename = imagename.parent / imagename.stem
+                self.log.debug('Clean parameters: %s', tclean_pars)
+                b75, is_combined, is_aca = self.automask_pars(intent)
+                auto_masking(uvdata, imagename, nproc=nproc,
+                             b75=b75, is_combined=is_combined,
+                             is_aca=is_aca, nsigma=nsigma, tclean_nsigma=True,
+                             log=self.log.info, **tclean_pars)
         elif intent == 'dirty' and imagename.exists():
             pass
-        else:
+        elif intent == 'dirty' or method == 'custom_cube':
             self.log.debug('tclean parameters: %s', tclean_pars)
-            tclean_parallel([self.concat_uvdata],
+            tclean_parallel(uvdata,
                             imagename.with_name(imagename.stem),
                             nproc,
                             tclean_pars,
@@ -389,15 +448,13 @@ class DataManager:
                                          tclean_nsigma=tclean_nsigma,
                                          **tclean_pars))
                 else:
-                    if 'b75' in self.config['continuum']:
-                        b75 = self.config['continuum']['b75'].split()
-                        b75 = float(b75[0]) * u.Unit(b75[1])
-                    else:
-                        b75 = None
+                    b75, is_combined, is_aca = self.automask_pars('continuum')
                     self.log.debug('Clean parameters: %s', tclean_pars)
                     tclean_pars.setdefault('pbcor', True)
                     info.update(auto_masking([val], imagename, nproc=nproc,
                                              b75=b75, nsigma=nsigma,
+                                             is_combined=is_combined,
+                                             is_aca=is_aca,
                                              tclean_nsigma=tclean_nsigma,
                                              log=self.log.info, **tclean_pars))
                 # Save info for resume
@@ -499,7 +556,8 @@ class DataManager:
 
         return cont_all, cont_avg
 
-    def get_contsub_vis(self, resume: bool = False):
+    def get_contsub_vis(self,
+                        resume: bool = False) -> Path:
         """Calculate continuum subtracted visibilities."""
         # File products
         flags_file = self.concat_uvdata.with_suffix('.fitspec.json')
@@ -507,14 +565,16 @@ class DataManager:
         contsub_vis = self.concat_uvdata.with_suffix('.contsub.ms')
         contsub_vis = self.environ.uvdata / contsub_vis.name
 
-        # Continuum: flagged channels
+        # Get visibilities
         if contsub_vis.exists() and resume:
             self.log.info('Skipping continuum subtraction')
         else:
-            # Files
+            # Check files
             if contsub_vis.exists():
                 self.log.warning('Deleting contsub ms')
                 os.system(f'rm -rf {contsub_vis}')
+
+            # Get flags
             if flags_file.is_file() and resume:
                 flags = json.loads(flags_file.read_text())
             else:
