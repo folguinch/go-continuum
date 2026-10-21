@@ -142,7 +142,7 @@ class DataManager:
         for i in range(neb):
             if neb != len(original_uvdata) and len(original_uvdata) == 1:
                 uvdata = original_uvdata[0]
-                spws = spws_per_eb(original_uvdata)[i+1]
+                spws = spws_per_eb(uvdata)[i+1]
             else:
                 uvdata = original_uvdata[i]
                 spws = spws_per_eb(uvdata)[1]
