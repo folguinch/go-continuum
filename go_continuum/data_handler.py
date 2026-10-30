@@ -278,7 +278,8 @@ class DataManager:
                    uvdata: Sequence[Path] = None,
                    nproc: int = 5,
                    use_fits: bool = False,
-                   resume: bool = False) -> Path:
+                   resume: bool = False
+                   resume_clean: bool = False) -> Path:
         """Clean data for requested `intent`.
         
         Args:
@@ -288,6 +289,7 @@ class DataManager:
           nproc: Optional. Number of processes.
           use_fits: Optional. Export and use image to FITS?
           resume: Optional. Resume from previous attempt.
+          resume_clean: Optional. Resume cleaning for new clean parameters.
 
         Returns:
           Image file name.
@@ -330,11 +332,11 @@ class DataManager:
             imagename = self.get_imagename(intent, spw=spw,
                                            tclean_pars=(tclean_pars |
                                                         {'nsigma': nsigma}))
-            if resume and imagename.exists():
+            if resume and imagename.exists() and not resume_clean:
                 self.log.info('Skipping imaging %s', imagename)
             else:
                 self.log.info('Cleaning cube: %s', imagename)
-                if imagename.exists():
+                if imagename.exists() and not resume_clean:
                     self.log.warning('Deleting %s image', imagename)
                     os.system(f"rm -rf {imagename.with_suffix('.*')}")
                 imagename = imagename.parent / imagename.stem
@@ -346,7 +348,7 @@ class DataManager:
                              log=self.log.info, **tclean_pars)
         elif intent == 'dirty' and imagename.exists():
             pass
-        elif intent == 'dirty' or method == 'custom_cube':
+        elif intent == 'dirty' or method == 'custom':
             self.log.debug('tclean parameters: %s', tclean_pars)
             tclean_parallel(uvdata,
                             imagename.with_name(imagename.stem),

@@ -82,14 +82,20 @@ def _goco_pipe(args: 'argparse.Namespace') -> None:
             args.log.info('*' * 15)
             args.log.info('Cleaning cubes:')
             args.log.info('*' * 15)
-            for spw in range(args.manager.nspws):
+            spws = args.manager.config.get('clean_cubes', 'spws', fallback=None)
+            if spws is None:
+                spws = range(args.manager.nspws)
+            else:
+                spws = map(int, spws.split(','))
+            for spw in spws:
                 args.log.info('-' * 15)
                 args.log.info('Calculating cube for spw%s', spw)
                 args.manager.clean_cube('clean_cubes',
                                         spw,
                                         uvdata=[contsub_vis],
                                         nproc=args.nproc[0],
-                                        resume=args.resume)
+                                        resume=args.resume
+                                        resume_clean=args.resume_clean)
 
     args.log.info('GoCo pipe finished, bye bye!')
 
@@ -125,6 +131,8 @@ def goco(args: Optional[Sequence] = None) -> None:
                         help='List available steps')
     parser.add_argument('--resume', action='store_true',
                         help='Resume unfinished steps')
+    parser.add_argument('--resume_clean', action='store_true',
+                        help='Continue cleaning if image is found')
     parser.add_argument('-b', '--base',
                         action=actions.NormalizePath,
                         default=Path('./'),
