@@ -278,7 +278,7 @@ class DataManager:
                    uvdata: Sequence[Path] = None,
                    nproc: int = 5,
                    use_fits: bool = False,
-                   resume: bool = False
+                   resume: bool = False,
                    resume_clean: bool = False) -> Path:
         """Clean data for requested `intent`.
         
