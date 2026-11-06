@@ -94,7 +94,7 @@ def _goco_pipe(args: 'argparse.Namespace') -> None:
                                         spw,
                                         uvdata=[contsub_vis],
                                         nproc=args.nproc[0],
-                                        resume=args.resume
+                                        resume=args.resume,
                                         resume_clean=args.resume_clean)
 
     args.log.info('GoCo pipe finished, bye bye!')
